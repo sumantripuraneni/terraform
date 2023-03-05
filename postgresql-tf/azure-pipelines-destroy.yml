@@ -1,0 +1,79 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger: 'none'
+
+variables:
+  vmImageName: ubuntu-latest
+  #azureSubscription: '03256176-3593-4a3c-b220-9c7b4415e41a'
+  workingDirectory: $(System.DefaultWorkingDirectory)/terraform
+  storageSubscription: '03256176-3593-4a3c-b220-9c7b4415e41a'
+  storageRGName: az-pipeline-demo
+  storageAcctName: cmpaterraform
+  storageCtrName: tfstate
+  storageKeyName: psql/terraform.tfstate
+
+
+stages:
+
+  - stage: tfInstall
+    displayName: Terraform install
+    jobs:
+      - job: terraformInstall
+        displayName: Install Terraform 
+        pool:
+          vmImage: $(vmImageName) 
+        steps:
+          - task: TerraformInstaller@0
+            inputs:
+              terraformVersion: 'latest'
+
+  - stage: processTerrform
+    displayName: Process Terraform Scripts
+    dependsOn: tfInstall
+    jobs:
+      - job: terraform
+        pool:
+          vmImage: $(vmImageName) 
+        steps:
+          - task: Bash@3
+            displayName: Print working directory contents
+            inputs:
+              targetType: 'inline'
+              script: |
+                # Write your commands here
+                
+                ls -lart $(System.DefaultWorkingDirectory)
+          
+          - bash: terraform -version
+            displayName: 'check terraform version'
+
+          - task: TerraformTaskV3@3
+            displayName: Init
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              workingDirectory: $(workingDirectory)
+              backendServiceArm: $(storageSubscription)
+              backendAzureRmResourceGroupName: $(storageRGName)
+              backendAzureRmStorageAccountName: $(storageAcctName)
+              backendAzureRmContainerName: $(storageCtrName)
+              backendAzureRmKey: $(storageKeyName)
+
+          - task: TerraformTaskV3@3
+            displayName: Plan 
+            inputs:
+              provider: 'azurerm'
+              command: 'plan'
+              environmentServiceNameAzureRM: $(storageSubscription)
+              workingDirectory: $(workingDirectory)
+              
+          - task: TerraformTaskV3@3
+            displayName: Destroy
+            inputs:
+              provider: 'azurerm'
+              command: 'destroy'
+              workingDirectory: '$(workingDirectory)'
+              environmentServiceNameAzureRM: '$(storageSubscription)'
